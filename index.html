@@ -13,12 +13,12 @@
     <div class="max-w-md mx-auto p-4 min-h-screen pb-32">
         <header class="text-center py-6">
             <h1 class="text-2xl font-bold text-slate-800">樂見山 CAMP</h1>
-            <p class="text-xs text-slate-400">專屬訂位服務</p>
+            <p class="text-xs text-slate-400 tracking-widest uppercase">Mountains & Memories</p>
         </header>
 
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
             <label class="block text-sm font-bold text-slate-700 mb-3">1. 選擇預訂日期</label>
-            <input type="text" id="dateRange" class="w-full p-4 border border-slate-200 rounded-xl text-lg text-center bg-slate-50" placeholder="點擊選擇日期範圍">
+            <input type="text" id="dateRange" class="w-full p-4 border border-slate-200 rounded-xl text-lg text-center bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200" placeholder="點擊選擇日期範圍">
             
             <div id="sunday-alert" class="hidden mt-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
                 <p class="text-sm text-amber-900 leading-relaxed font-medium">
@@ -27,14 +27,14 @@
             </div>
         </div>
 
-        <div id="weekend-lock" class="hidden bg-blue-50 p-6 rounded-2xl border border-blue-100 text-center mb-4">
+        <div id="weekend-lock" class="hidden bg-blue-50 p-6 rounded-2xl border border-blue-100 text-center mb-4 transition-all">
             <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span class="text-2xl">🗓️</span>
+                <span class="text-2xl">🌲</span>
             </div>
-            <p class="text-blue-900 font-bold mb-1">週五、週六時段</p>
-            <p class="text-xs text-blue-600 mb-4 leading-relaxed">目前週末時段統一於【愛露營】平台開放預訂<br>歡迎透過下方連結前往。</p>
-            <a href="https://m.icamping.app/" target="_blank" class="inline-block bg-blue-600 text-white px-8 py-3 rounded-full font-bold text-sm shadow-md active:scale-95 transition-all">
-                前往愛露營預訂
+            <p class="text-blue-900 font-bold mb-1">週五、週六時段預訂</p>
+            <p class="text-xs text-blue-600 mb-4 leading-relaxed">目前週末時段統一於【愛露營】平台開放預訂<br>歡迎點擊下方連結前往樂見山專屬頁面。</p>
+            <a href="https://m.icamping.app/store/ljs761" target="_blank" class="inline-block bg-blue-600 text-white px-8 py-3 rounded-full font-bold text-sm shadow-md active:scale-95 transition-all">
+                前往愛露營 (樂見山專屬)
             </a>
         </div>
 
@@ -45,7 +45,7 @@
             <div class="fixed bottom-4 left-4 right-4 max-w-md mx-auto bg-slate-900 text-white p-5 rounded-2xl shadow-2xl border border-slate-700">
                 <div class="flex justify-between items-center">
                     <div>
-                        <p class="text-[10px] uppercase tracking-wider opacity-50" id="summary-count">尚未選擇</p>
+                        <p class="text-[10px] uppercase tracking-wider opacity-50" id="summary-count">尚未選擇區域</p>
                         <p id="total-price" class="text-2xl font-bold text-green-400">NT$ 0</p>
                     </div>
                     <button onclick="handleBooking()" id="submit-btn" class="bg-green-500 px-8 py-4 rounded-xl font-bold text-white hover:bg-green-400 disabled:opacity-30 disabled:grayscale transition-all shadow-lg active:scale-95">
@@ -57,12 +57,10 @@
     </div>
 
     <script>
-        // 初始化 Supabase
         const _supabase = supabase.createClient('https://evdnzkvrmjnuzomogzar.supabase.co', 'sb_publishable_Tlpp57LlXUwYBRX84lI4WQ_MCv74hVQ');
         let selectedDates = [];
         let cart = {}; 
 
-        // 初始化日曆
         flatpickr("#dateRange", {
             mode: "range",
             minDate: "today",
@@ -70,53 +68,50 @@
             onClose: function(dates) {
                 if (dates.length === 2) {
                     selectedDates = dates;
-                    // 執行週日進場判定
-                    const checkInDate = dates[0];
-                    const sundayAlert = document.getElementById('sunday-alert');
-                    if (checkInDate.getDay() === 0) {
-                        sundayAlert.classList.remove('hidden');
-                    } else {
-                        sundayAlert.classList.add('hidden');
-                    }
-                    // 執行可用性檢查
                     checkAvailability();
                 }
             }
         });
 
         async function checkAvailability() {
-            // 強化版：週末偵測邏輯 (逐日掃描)
+            // 重設 UI 狀態
+            document.getElementById('sunday-alert').classList.add('hidden');
+            const lockBox = document.getElementById('weekend-lock');
+            const zoneBox = document.getElementById('zone-selection');
+            
+            // 偵測週末 (週五 5, 週六 6)
             let hasWeekend = false;
             let scanDate = new Date(selectedDates[0]);
             let checkoutDate = new Date(selectedDates[1]);
 
             while (scanDate < checkoutDate) {
                 const day = scanDate.getDay();
-                if (day === 5 || day === 6) { // 5:週五, 6:週六
+                if (day === 5 || day === 6) {
                     hasWeekend = true;
                     break;
                 }
                 scanDate.setDate(scanDate.getDate() + 1);
             }
 
-            const lockBox = document.getElementById('weekend-lock');
-            const zoneBox = document.getElementById('zone-selection');
-
             if (hasWeekend) {
                 lockBox.classList.remove('hidden');
                 zoneBox.classList.add('hidden');
-                return; // 直接中斷，不進行庫存查詢
+                return;
             } else {
                 lockBox.classList.add('hidden');
                 zoneBox.classList.remove('hidden');
             }
 
+            // 週日進場提醒判定
+            if (selectedDates[0].getDay() === 0) {
+                document.getElementById('sunday-alert').classList.remove('hidden');
+            }
+
             const start = selectedDates[0].toLocaleDateString('en-CA');
             const end = selectedDates[1].toLocaleDateString('en-CA');
 
-            // 1. 抓取庫存與區域資料
+            // 抓取庫存與平日規則
             const { data: inventoryData } = await _supabase.from('inventory').select('*, zones(*)').gte('date', start).lt('date', end);
-            // 2. 抓取平日減帳規則
             const { data: rules } = await _supabase.from('site_rules').select('*');
             const weekdayRule = rules.find(r => r.id === 'weekday');
 
@@ -139,7 +134,7 @@
                         days: 0
                     };
                 }
-                // 平日減帳計算邏輯
+                // 平日減帳計算
                 const dynamicMax = Math.max(1, Math.floor(item.zones.total_spots * ratio));
                 const currentAvail = Math.min(dynamicMax, item.remaining_spots);
                 
@@ -198,7 +193,6 @@
             const guestCounts = zoneIds.map(id => cart[id].quantity);
             const totalPrice = parseInt(document.getElementById('total-price').innerText.replace(/[NT$, ]/g, ''));
 
-            // 呼叫新版大腦 create_camp_booking_v2
             const { data, error } = await _supabase.rpc('create_camp_booking_v2', {
                 p_user_id: 'Guest_User',
                 p_zone_ids: zoneIds,
@@ -209,7 +203,7 @@
             });
 
             if (error) {
-                alert("抱歉，預訂未能成功：" + error.message);
+                alert("預訂未能成功：" + error.message);
                 btn.disabled = false;
                 btn.innerHTML = "確認訂位";
             } else {
