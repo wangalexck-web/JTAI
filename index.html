@@ -18,7 +18,7 @@
 
         <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 mb-4">
             <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">1. 選擇日期範圍</label>
-            <input type="text" id="dateRange" class="w-full p-4 border-none rounded-2xl text-lg text-center bg-slate-100 font-bold text-slate-700 focus:ring-2 focus:ring-green-200" placeholder="點擊預訂您的山中假期">
+            <input type="text" id="dateRange" class="w-full p-4 border-none rounded-2xl text-lg text-center bg-slate-100 font-bold text-slate-700 focus:ring-2 focus:ring-green-200" placeholder="點擊選擇日期">
             
             <div id="sunday-alert" class="hidden mt-4 p-4 bg-amber-50 border border-amber-100 rounded-2xl">
                 <p class="text-sm text-amber-900 leading-relaxed font-medium">✨ 為了給您最乾淨的草地與環境，<strong>週日進場時間為 14:00 後</strong>。</p>
@@ -57,7 +57,7 @@
         const _supabase = supabase.createClient('https://evdnzkvrmjnuzomogzar.supabase.co', 'sb_publishable_Tlpp57LlXUwYBRX84lI4WQ_MCv74hVQ');
         let selectedDates = [];
         let cart = {}; 
-        let isHolidayProject = false; // 是否處於連假專案狀態
+        let isHolidayProject = false;
 
         flatpickr("#dateRange", {
             mode: "range",
@@ -82,25 +82,17 @@
             const startStr = selectedDates[0].toLocaleDateString('en-CA');
             const endStr = selectedDates[1].toLocaleDateString('en-CA');
 
-            // 1. 檢查資料庫是否有連假專案
+            // 1. 修正版：重疊判定邏輯
             const { data: project } = await _supabase
                 .from('holiday_config')
                 .select('*')
-                .or(`start_date.lte.${startStr},end_date.gte.${startStr}`)
-                .limit(1)
+                .lte('start_date', endStr)
+                .gte('end_date', startStr)
                 .maybeSingle();
 
-            // 檢查選定範圍是否與專案重疊
-            let inProject = false;
-            if (project) {
-                const pStart = new Date(project.start_date);
-                const pEnd = new Date(project.end_date);
-                if (selectedDates[0] >= pStart && selectedDates[0] <= pEnd) inProject = true;
-            }
+            isHolidayProject = !!project;
 
-            isHolidayProject = inProject;
-
-            // 2. 判定週末屏蔽 (如果是專案就不屏蔽)
+            // 2. 週末判定 (專案中則不鎖定)
             let hasWeekend = false;
             if (!isHolidayProject) {
                 let scanDate = new Date(selectedDates[0]);
@@ -119,7 +111,7 @@
                 zoneBox.classList.remove('hidden');
             }
 
-            // 3. 顯示提醒
+            // 3. 提示邏輯
             if (isHolidayProject) {
                 document.getElementById('project-tag').classList.remove('hidden');
                 document.getElementById('project-alert').classList.remove('hidden');
@@ -128,11 +120,12 @@
                 document.getElementById('sunday-alert').classList.remove('hidden');
             }
 
-            // 4. 抓取庫存與比例 (專案模式比例設為 1.0)
+            // 4. 抓取庫存與比例
             const { data: inventoryData } = await _supabase.from('inventory').select('*, zones(*)').gte('date', startStr).lt('date', endStr);
             const { data: rules } = await _supabase.from('site_rules').select('*');
             const weekdayRule = rules.find(r => r.id === 'weekday');
             
+            // 專案期間比例設為 1.0 (全開)
             const currentRatio = isHolidayProject ? 1.0 : (weekdayRule ? weekdayRule.max_spots_ratio : 0.34);
             renderZones(inventoryData, currentRatio);
         }
