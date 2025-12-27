@@ -3,102 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>樂見山 CAMP - 訂位系統</title>
+    <title>樂見山 CAMP - 壓力測試中</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
-<body class="bg-slate-50 text-slate-900">
-    <div class="max-w-md mx-auto p-4">
-        <header class="mb-6 text-center">
-            <h1 class="text-2xl font-bold">樂見山 CAMP</h1>
-            <div id="status-tag" class="inline-block px-3 py-1 rounded-full text-xs bg-gray-200">連線中...</div>
-        </header>
-
-        <div id="zone-container" class="grid grid-cols-2 gap-3 mb-6">
-            </div>
-
-        <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 mb-6">
-            <label class="block text-sm font-medium mb-2">選擇預訂日期</label>
-            <input type="text" id="dateRange" class="w-full p-3 border border-slate-200 rounded-lg text-lg text-center" placeholder="點擊查看可用日期">
-            <p id="holiday-note" class="mt-2 text-xs text-blue-600 hidden">💡 您選擇的日期包含連假，需連訂 3 天以上</p>
+<body class="bg-slate-50 p-8">
+    <div class="max-w-md mx-auto bg-white p-6 rounded-2xl shadow-lg">
+        <h1 class="text-xl font-bold mb-4">樂見山系統：併發壓力測試</h1>
+        <p class="text-sm text-gray-600 mb-6">點擊下方按鈕，系統將模擬 10 人同時搶訂「2026-01-01 A區」。</p>
+        
+        <div id="test-result" class="mb-6 p-4 bg-slate-100 rounded-lg hidden">
+            <p id="summary" class="font-bold mb-2"></p>
+            <div id="details" class="text-xs font-mono space-y-1"></div>
         </div>
 
-        <div id="price-panel" class="bg-slate-800 text-white p-5 rounded-2xl mb-6 hidden">
-            <div class="flex justify-between mb-2 opacity-80">
-                <span>預訂天數</span>
-                <span id="daysDisplay">0 晚</span>
-            </div>
-            <div class="flex justify-between text-xl font-bold">
-                <span>合計金額</span>
-                <span id="priceDisplay">NT$ 0</span>
-            </div>
-            <button onclick="submitOrder()" class="w-full mt-4 bg-green-500 hover:bg-green-400 text-white py-3 rounded-xl font-bold transition-colors">
-                立即預訂
-            </button>
-        </div>
+        <button onclick="runStressTest()" id="btn-test" class="w-full bg-red-500 text-white py-4 rounded-xl font-bold hover:bg-red-600 transition-all">
+            啟動 10 人搶位測試
+        </button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script>
-        // 1. 初始化 Supabase
         const _supabase = supabase.createClient('https://evdnzkvrmjnuzomogzar.supabase.co', 'sb_publishable_Tlpp57LlXUwYBRX84lI4WQ_MCv74hVQ');
-        let selectedZone = null;
 
-        // 2. 頁面載入：抓取區域資料
-        async function fetchZones() {
-            const { data, error } = await _supabase.from('zones').select('*');
-            if (error) {
-                document.getElementById('status-tag').innerText = '連線失敗';
-                return;
-            }
-            document.getElementById('status-tag').innerText = '系統運作中';
-            const container = document.getElementById('zone-container');
-            data.forEach(zone => {
-                const card = document.createElement('button');
-                card.className = "p-4 bg-white border border-slate-200 rounded-xl text-center hover:border-green-500 transition-all";
-                card.onclick = () => selectZone(zone, card);
-                card.innerHTML = `<div class="font-bold">${zone.name}</div><div class="text-xs text-slate-500">${zone.is_package_only ? '限包區' : zone.total_spots + '帳'}</div>`;
-                container.appendChild(card);
+        async function runStressTest() {
+            const btn = document.getElementById('btn-test');
+            const resultDiv = document.getElementById('test-result');
+            const summary = document.getElementById('summary');
+            const details = document.getElementById('details');
+
+            btn.disabled = true;
+            btn.innerText = "測試執行中...";
+            resultDiv.classList.remove('hidden');
+            details.innerHTML = "";
+
+            // 模擬 10 個併發請求
+            const requests = Array.from({ length: 10 }).map((_, i) => {
+                return _supabase.rpc('create_camp_booking', {
+                    p_user_id: `Tester_${i + 1}`,
+                    p_zone_ids: ['A'], 
+                    p_check_in: '2026-01-01',
+                    p_check_out: '2026-01-02',
+                    p_total_price: 1100
+                });
             });
-        }
 
-        function selectZone(zone, element) {
-            selectedZone = zone;
-            document.querySelectorAll('#zone-container button').forEach(b => b.classList.remove('border-green-500', 'bg-green-50'));
-            element.classList.add('border-green-500', 'bg-green-50');
-            // 當區域變更，重新開啟日曆或重算價格
-        }
+            const results = await Promise.all(requests);
+            
+            let successCount = 0;
+            let errorCount = 0;
 
-        // 3. 初始化日曆
-        flatpickr("#dateRange", {
-            mode: "range",
-            minDate: "today",
-            onClose: function(selectedDates) {
-                if (selectedDates.length === 2 && selectedZone) {
-                    calculateStay(selectedDates);
-                }
+            results.forEach((r, i) => {
+                const isSuccess = r.data && r.data.includes('SUCCESS');
+                if (isSuccess) successCount++; else errorCount++;
+                
+                const item = document.createElement('div');
+                item.className = isSuccess ? 'text-green-600' : 'text-red-600';
+                item.innerText = `請求 ${i+1}: ${r.data || r.error.message}`;
+                details.appendChild(item);
+            });
+
+            summary.innerText = `✅ 成功: ${successCount} | ❌ 失敗: ${errorCount}`;
+            btn.disabled = false;
+            btn.innerText = "重新測試";
+            
+            if (successCount === 1) {
+                alert("測試完美！資料庫成功擋住超賣，僅 1 人搶到位置。");
             }
-        });
-
-        function calculateStay(dates) {
-            const diffTime = Math.abs(dates[1] - dates[0]);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            
-            // 簡易邏輯：假日判定 (這邊之後會加入 inventory 資料表的連假拆分判定)
-            const isWeekend = dates[0].getDay() === 5 || dates[0].getDay() === 6; 
-            const pricePerNight = isWeekend ? selectedZone.base_price_weekend : selectedZone.base_price_weekday;
-            
-            document.getElementById('price-panel').classList.remove('hidden');
-            document.getElementById('daysDisplay').innerText = diffDays + ' 晚';
-            document.getElementById('priceDisplay').innerText = 'NT$ ' + (pricePerNight * diffDays);
         }
-
-        async function submitOrder() {
-            alert('恭喜！PM 成功建立前端與資料庫連結，下一步我們來寫搶位邏輯！');
-        }
-
-        fetchZones();
     </script>
 </body>
 </html>
