@@ -3,71 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>樂見山 CAMP - 壓力測試中</title>
+    <title>樂見山 CAMP - 預訂系統</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
-<body class="bg-slate-50 p-8">
-    <div class="max-w-md mx-auto bg-white p-6 rounded-2xl shadow-lg">
-        <h1 class="text-xl font-bold mb-4">樂見山系統：併發壓力測試</h1>
-        <p class="text-sm text-gray-600 mb-6">點擊下方按鈕，系統將模擬 10 人同時搶訂「2026-01-01 A區」。</p>
-        
-        <div id="test-result" class="mb-6 p-4 bg-slate-100 rounded-lg hidden">
-            <p id="summary" class="font-bold mb-2"></p>
-            <div id="details" class="text-xs font-mono space-y-1"></div>
+<body class="bg-slate-50">
+    <div class="max-w-md mx-auto p-4 min-h-screen">
+        <header class="text-center py-6">
+            <h1 class="text-2xl font-bold text-slate-800">樂見山 CAMP</h1>
+            <p class="text-xs text-slate-400">專屬訂位服務</p>
+        </header>
+
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
+            <label class="block text-sm font-bold text-slate-700 mb-3">1. 選擇預訂日期</label>
+            <input type="text" id="dateRange" class="w-full p-4 border border-slate-200 rounded-xl text-lg text-center bg-slate-50" placeholder="點擊選擇日期範圍">
         </div>
 
-        <button onclick="runStressTest()" id="btn-test" class="w-full bg-red-500 text-white py-4 rounded-xl font-bold hover:bg-red-600 transition-all">
-            啟動 10 人搶位測試
-        </button>
+        <div id="zone-selection" class="hidden">
+            <label class="block text-sm font-bold text-slate-700 mb-3 px-1">2. 選擇營位 (可多選)</label>
+            <div id="zone-list" class="space-y-3 mb-6">
+                </div>
+
+            <div class="bg-slate-800 text-white p-5 rounded-2xl shadow-xl sticky bottom-4">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <p class="text-xs opacity-70">預計預訂</p>
+                        <p id="summary-text" class="font-bold">請選擇區域</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs opacity-70">總計金額</p>
+                        <p id="total-price" class="text-xl font-bold">NT$ 0</p>
+                    </div>
+                </div>
+                <button onclick="handleBooking()" id="submit-btn" class="w-full bg-green-500 py-4 rounded-xl font-bold text-lg hover:bg-green-400 active:scale-95 transition-all">
+                    確認訂位
+                </button>
+            </div>
+        </div>
     </div>
 
     <script>
         const _supabase = supabase.createClient('https://evdnzkvrmjnuzomogzar.supabase.co', 'sb_publishable_Tlpp57LlXUwYBRX84lI4WQ_MCv74hVQ');
+        let selectedDates = [];
+        let availableZones = [];
+        let cart = [];
 
-        async function runStressTest() {
-            const btn = document.getElementById('btn-test');
-            const resultDiv = document.getElementById('test-result');
-            const summary = document.getElementById('summary');
-            const details = document.getElementById('details');
+        // 初始化日曆
+        flatpickr("#dateRange", {
+            mode: "range",
+            minDate: "today",
+            dateFormat: "Y-m-d",
+            onClose: function(dates) {
+                if (dates.length === 2) {
+                    selectedDates = dates;
+                    checkAvailability();
+                }
+            }
+        });
 
-            btn.disabled = true;
-            btn.innerText = "測試執行中...";
-            resultDiv.classList.remove('hidden');
-            details.innerHTML = "";
+        // 查詢可用位子
+        async function checkAvailability() {
+            const start = selectedDates[0].toISOString().split('T')[0];
+            const end = selectedDates[1].toISOString().split('T')[0];
+            
+            // 抓取該時段內所有庫存
+            const { data, error } = await _supabase
+                .from('inventory')
+                .select('zone_id, date, remaining_spots, current_price, zones(name, is_package_only)')
+                .gte('date', start)
+                .lt('date', end);
 
-            // 模擬 10 個併發請求
-            const requests = Array.from({ length: 10 }).map((_, i) => {
-                return _supabase.rpc('create_camp_booking', {
-                    p_user_id: `Tester_${i + 1}`,
-                    p_zone_ids: ['A'], 
-                    p_check_in: '2026-01-01',
-                    p_check_out: '2026-01-02',
-                    p_total_price: 1100
+            if (error) return alert("查詢失敗");
+
+            // 邏輯：必須在選定期間「每一天」都有位子才顯示
+            const duration = Math.ceil((selectedDates[1] - selectedDates[0]) / (86400000));
+            const zoneMap = {};
+            
+            data.forEach(item => {
+                if (!zoneMap[item.zone_id]) zoneMap[item.zone_id] = { ...item, days: 0, totalPrice: 0 };
+                if (item.remaining_spots > 0) {
+                    zoneMap[item.zone_id].days++;
+                    zoneMap[item.zone_id].totalPrice += item.current_price;
+                }
+            });
+
+            renderZones(Object.values(zoneMap).filter(z => z.days === duration));
+        }
+
+        function renderZones(zones) {
+            const list = document.getElementById('zone-list');
+            const container = document.getElementById('zone-selection');
+            list.innerHTML = "";
+            cart = [];
+            updateUI();
+
+            if (zones.length === 0) {
+                list.innerHTML = "<p class='text-center py-10 text-slate-400'>此時段已無可用營位</p>";
+            } else {
+                zones.forEach(z => {
+                    const card = document.createElement('div');
+                    card.className = "bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center cursor-pointer";
+                    card.onclick = () => toggleCart(z);
+                    card.innerHTML = `
+                        <div>
+                            <div class="font-bold text-slate-800">${z.zones.name}</div>
+                            <div class="text-xs text-slate-500">${z.zones.is_package_only ? '限包區' : '可散訂'} · NT$ ${z.totalPrice}</div>
+                        </div>
+                        <div id="check-${z.zone_id}" class="w-6 h-6 border-2 border-slate-200 rounded-full flex items-center justify-center"></div>
+                    `;
+                    list.appendChild(card);
                 });
+            }
+            container.classList.remove('hidden');
+        }
+
+        function toggleCart(zone) {
+            const idx = cart.findIndex(item => item.zone_id === zone.zone_id);
+            const check = document.getElementById(`check-${zone.zone_id}`);
+            if (idx > -1) {
+                cart.splice(idx, 1);
+                check.classList.remove('bg-green-500', 'border-green-500');
+                check.innerHTML = "";
+            } else {
+                cart.push(zone);
+                check.classList.add('bg-green-500', 'border-green-500');
+                check.innerHTML = "✓";
+            }
+            updateUI();
+        }
+
+        function updateUI() {
+            const total = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+            document.getElementById('total-price').innerText = `NT$ ${total}`;
+            document.getElementById('summary-text').innerText = cart.length > 0 ? `已選 ${cart.length} 個區域` : "請選擇區域";
+            document.getElementById('submit-btn').disabled = cart.length === 0;
+            document.getElementById('submit-btn').className = cart.length === 0 ? "w-full bg-slate-600 py-4 rounded-xl font-bold opacity-50" : "w-full bg-green-500 py-4 rounded-xl font-bold text-white shadow-lg";
+        }
+
+        async function handleBooking() {
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.innerText = "訂單處理中...";
+
+            const res = await _supabase.rpc('create_camp_booking', {
+                p_user_id: 'Line_User_Live',
+                p_zone_ids: cart.map(item => item.zone_id),
+                p_check_in: selectedDates[0].toISOString().split('T')[0],
+                p_check_out: selectedDates[1].toISOString().split('T')[0],
+                p_total_price: cart.reduce((sum, item) => sum + item.totalPrice, 0)
             });
 
-            const results = await Promise.all(requests);
-            
-            let successCount = 0;
-            let errorCount = 0;
-
-            results.forEach((r, i) => {
-                const isSuccess = r.data && r.data.includes('SUCCESS');
-                if (isSuccess) successCount++; else errorCount++;
-                
-                const item = document.createElement('div');
-                item.className = isSuccess ? 'text-green-600' : 'text-red-600';
-                item.innerText = `請求 ${i+1}: ${r.data || r.error.message}`;
-                details.appendChild(item);
-            });
-
-            summary.innerText = `✅ 成功: ${successCount} | ❌ 失敗: ${errorCount}`;
-            btn.disabled = false;
-            btn.innerText = "重新測試";
-            
-            if (successCount === 1) {
-                alert("測試完美！資料庫成功擋住超賣，僅 1 人搶到位置。");
+            if (res.data && res.data.includes('SUCCESS')) {
+                alert("預訂成功！請至 LINE 查看明細。");
+                location.reload();
+            } else {
+                alert("預訂失敗：" + res.data);
+                btn.disabled = false;
+                btn.innerText = "確認訂位";
             }
         }
     </script>
