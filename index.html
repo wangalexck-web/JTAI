@@ -10,7 +10,7 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body class="bg-slate-50">
-    <div class="max-w-md mx-auto p-4 min-h-screen">
+    <div class="max-w-md mx-auto p-4 min-h-screen pb-32">
         <header class="text-center py-6">
             <h1 class="text-2xl font-bold text-slate-800">樂見山 CAMP</h1>
             <p class="text-xs text-slate-400">專屬訂位服務</p>
@@ -19,27 +19,34 @@
         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
             <label class="block text-sm font-bold text-slate-700 mb-3">1. 選擇預訂日期</label>
             <input type="text" id="dateRange" class="w-full p-4 border border-slate-200 rounded-xl text-lg text-center bg-slate-50" placeholder="點擊選擇日期範圍">
+            
+            <div id="sunday-alert" class="hidden mt-3 p-3 bg-amber-50 border border-amber-100 rounded-lg">
+                <p class="text-xs text-amber-800 leading-relaxed">
+                    ✨ 為了給您最乾淨的草地與環境，<strong>週日進場時間為 14:00 後</strong>。營主正在為您的到來進行最後的打掃與整備，感謝您的體諒與耐心等待。
+                </p>
+            </div>
+        </div>
+
+        <div id="weekend-lock" class="hidden bg-blue-50 p-6 rounded-2xl border border-blue-100 text-center mb-4">
+            <p class="text-blue-800 font-bold mb-3">週五、週六時段</p>
+            <p class="text-sm text-blue-600 mb-4">目前週末統一於【愛露營】平台開放預訂</p>
+            <a href="https://m.icamping.app/" target="_blank" class="inline-block bg-blue-500 text-white px-6 py-2 rounded-full font-bold text-sm">前往愛露營</a>
         </div>
 
         <div id="zone-selection" class="hidden">
-            <label class="block text-sm font-bold text-slate-700 mb-3 px-1">2. 選擇營位 (可多選)</label>
-            <div id="zone-list" class="space-y-3 mb-6">
-                </div>
+            <label class="block text-sm font-bold text-slate-700 mb-3 px-1">2. 選擇營位與帳數</label>
+            <div id="zone-list" class="space-y-3 mb-6"></div>
 
-            <div class="bg-slate-800 text-white p-5 rounded-2xl shadow-xl sticky bottom-4">
+            <div class="fixed bottom-4 left-4 right-4 max-w-md mx-auto bg-slate-800 text-white p-5 rounded-2xl shadow-xl">
                 <div class="flex justify-between items-center mb-4">
                     <div>
-                        <p class="text-xs opacity-70">預計預訂</p>
-                        <p id="summary-text" class="font-bold">請選擇區域</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="text-xs opacity-70">總計金額</p>
+                        <p class="text-xs opacity-70" id="summary-count">已選 0 區</p>
                         <p id="total-price" class="text-xl font-bold">NT$ 0</p>
                     </div>
+                    <button onclick="handleBooking()" id="submit-btn" class="bg-green-500 px-8 py-3 rounded-xl font-bold hover:bg-green-400 disabled:opacity-50 transition-all">
+                        確認訂位
+                    </button>
                 </div>
-                <button onclick="handleBooking()" id="submit-btn" class="w-full bg-green-500 py-4 rounded-xl font-bold text-lg hover:bg-green-400 active:scale-95 transition-all">
-                    確認訂位
-                </button>
             </div>
         </div>
     </div>
@@ -47,121 +54,156 @@
     <script>
         const _supabase = supabase.createClient('https://evdnzkvrmjnuzomogzar.supabase.co', 'sb_publishable_Tlpp57LlXUwYBRX84lI4WQ_MCv74hVQ');
         let selectedDates = [];
-        let availableZones = [];
-        let cart = [];
+        let cart = {}; // 格式: { zone_id: { quantity, pricePerNight, name } }
 
-        // 初始化日曆
         flatpickr("#dateRange", {
             mode: "range",
             minDate: "today",
+            maxDate: new Date().fp_incr(90),
             dateFormat: "Y-m-d",
             onClose: function(dates) {
                 if (dates.length === 2) {
                     selectedDates = dates;
+                    checkSundayAlert(dates[0]);
                     checkAvailability();
                 }
             }
         });
 
-        // 查詢可用位子
+        function checkSundayAlert(checkInDate) {
+            const alertBox = document.getElementById('sunday-alert');
+            // 週日是 0
+            if (checkInDate.getDay() === 0) {
+                alertBox.classList.remove('hidden');
+            } else {
+                alertBox.classList.add('hidden');
+            }
+        }
+
         async function checkAvailability() {
             const start = selectedDates[0].toISOString().split('T')[0];
             const end = selectedDates[1].toISOString().split('T')[0];
             
-            // 抓取該時段內所有庫存
-            const { data, error } = await _supabase
-                .from('inventory')
-                .select('zone_id, date, remaining_spots, current_price, zones(name, is_package_only)')
-                .gte('date', start)
-                .lt('date', end);
+            // 檢查是否包含週五(5)或週六(6)
+            let hasWeekend = false;
+            let curr = new Date(selectedDates[0]);
+            while (curr < selectedDates[1]) {
+                if (curr.getDay() === 5 || curr.getDay() === 6) hasWeekend = true;
+                curr.setDate(curr.getDate() + 1);
+            }
 
-            if (error) return alert("查詢失敗");
+            const lockBox = document.getElementById('weekend-lock');
+            const zoneBox = document.getElementById('zone-selection');
 
-            // 邏輯：必須在選定期間「每一天」都有位子才顯示
-            const duration = Math.ceil((selectedDates[1] - selectedDates[0]) / (86400000));
-            const zoneMap = {};
+            if (hasWeekend) {
+                lockBox.classList.remove('hidden');
+                zoneBox.classList.add('hidden');
+                return;
+            } else {
+                lockBox.classList.add('hidden');
+                zoneBox.classList.remove('hidden');
+            }
+
+            // 抓取庫存與規則 (平日比例)
+            const { data: inventoryData } = await _supabase.from('inventory').select('*, zones(*)').gte('date', start).lt('date', end);
+            const { data: rules } = await _supabase.from('site_rules').select('*');
+            const weekdayRule = rules.find(r => r.id === 'weekday');
+
+            renderZones(inventoryData, weekdayRule.max_spots_ratio);
+        }
+
+        function renderZones(data, ratio) {
+            const list = document.getElementById('zone-list');
+            list.innerHTML = "";
+            cart = {};
             
+            const zoneMap = {};
             data.forEach(item => {
-                if (!zoneMap[item.zone_id]) zoneMap[item.zone_id] = { ...item, days: 0, totalPrice: 0 };
-                if (item.remaining_spots > 0) {
-                    zoneMap[item.zone_id].days++;
-                    zoneMap[item.zone_id].totalPrice += item.current_price;
+                if (!zoneMap[item.zone_id]) {
+                    zoneMap[item.zone_id] = { 
+                        name: item.zones.name, 
+                        total_spots: item.zones.total_spots,
+                        min_avail: 99, 
+                        total_price: 0,
+                        days: 0
+                    };
                 }
+                // 平日減帳計算: 總帳數 * 比例 (無條件進位/捨去視規則，此處採簡單計算)
+                const dynamicMax = Math.max(1, Math.floor(item.zones.total_spots * ratio));
+                const currentAvail = Math.min(dynamicMax, item.remaining_spots);
+                
+                zoneMap[item.zone_id].min_avail = Math.min(zoneMap[item.zone_id].min_avail, currentAvail);
+                zoneMap[item.zone_id].total_price += item.current_price;
+                zoneMap[item.zone_id].days++;
             });
 
-            renderZones(Object.values(zoneMap).filter(z => z.days === duration));
-        }
-
-        function renderZones(zones) {
-            const list = document.getElementById('zone-list');
-            const container = document.getElementById('zone-selection');
-            list.innerHTML = "";
-            cart = [];
+            Object.keys(zoneMap).forEach(id => {
+                const z = zoneMap[id];
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center";
+                card.innerHTML = `
+                    <div>
+                        <div class="font-bold text-slate-800">${z.name}</div>
+                        <div class="text-xs text-slate-500">平日限定開放 ${z.min_avail} 帳</div>
+                    </div>
+                    <select onchange="updateCart('${id}', this.value, ${z.total_price/z.days}, '${z.name}')" class="p-2 border rounded-lg bg-slate-50 text-sm">
+                        <option value="0">不預訂</option>
+                        ${Array.from({length: z.min_avail}, (_, i) => `<option value="${i+1}">${i+1} 帳</option>`).join('')}
+                    </select>
+                `;
+                list.appendChild(card);
+            });
             updateUI();
-
-            if (zones.length === 0) {
-                list.innerHTML = "<p class='text-center py-10 text-slate-400'>此時段已無可用營位</p>";
-            } else {
-                zones.forEach(z => {
-                    const card = document.createElement('div');
-                    card.className = "bg-white p-4 rounded-xl border border-slate-200 flex justify-between items-center cursor-pointer";
-                    card.onclick = () => toggleCart(z);
-                    card.innerHTML = `
-                        <div>
-                            <div class="font-bold text-slate-800">${z.zones.name}</div>
-                            <div class="text-xs text-slate-500">${z.zones.is_package_only ? '限包區' : '可散訂'} · NT$ ${z.totalPrice}</div>
-                        </div>
-                        <div id="check-${z.zone_id}" class="w-6 h-6 border-2 border-slate-200 rounded-full flex items-center justify-center"></div>
-                    `;
-                    list.appendChild(card);
-                });
-            }
-            container.classList.remove('hidden');
         }
 
-        function toggleCart(zone) {
-            const idx = cart.findIndex(item => item.zone_id === zone.zone_id);
-            const check = document.getElementById(`check-${zone.zone_id}`);
-            if (idx > -1) {
-                cart.splice(idx, 1);
-                check.classList.remove('bg-green-500', 'border-green-500');
-                check.innerHTML = "";
+        function updateCart(id, qty, price, name) {
+            if (qty > 0) {
+                cart[id] = { quantity: parseInt(qty), pricePerNight: price, name: name };
             } else {
-                cart.push(zone);
-                check.classList.add('bg-green-500', 'border-green-500');
-                check.innerHTML = "✓";
+                delete cart[id];
             }
             updateUI();
         }
 
         function updateUI() {
-            const total = cart.reduce((sum, item) => sum + item.totalPrice, 0);
+            const nights = Math.ceil((selectedDates[1] - selectedDates[0]) / 86400000);
+            let total = 0;
+            let count = 0;
+            Object.values(cart).forEach(item => {
+                total += item.quantity * item.pricePerNight * nights;
+                count++;
+            });
             document.getElementById('total-price').innerText = `NT$ ${total}`;
-            document.getElementById('summary-text').innerText = cart.length > 0 ? `已選 ${cart.length} 個區域` : "請選擇區域";
-            document.getElementById('submit-btn').disabled = cart.length === 0;
-            document.getElementById('submit-btn').className = cart.length === 0 ? "w-full bg-slate-600 py-4 rounded-xl font-bold opacity-50" : "w-full bg-green-500 py-4 rounded-xl font-bold text-white shadow-lg";
+            document.getElementById('summary-count').innerText = `已選 ${count} 個區域`;
+            document.getElementById('submit-btn').disabled = count === 0;
         }
 
         async function handleBooking() {
             const btn = document.getElementById('submit-btn');
             btn.disabled = true;
-            btn.innerText = "訂單處理中...";
+            btn.innerText = "處理中...";
 
-            const res = await _supabase.rpc('create_camp_booking', {
-                p_user_id: 'Line_User_Live',
-                p_zone_ids: cart.map(item => item.zone_id),
+            const zoneIds = Object.keys(cart);
+            const guestCounts = zoneIds.map(id => cart[id].quantity);
+            const totalPrice = parseInt(document.getElementById('total-price').innerText.replace('NT$ ', ''));
+
+            // 呼叫新版大腦 create_camp_booking_v2
+            const { data, error } = await _supabase.rpc('create_camp_booking_v2', {
+                p_user_id: 'Line_User_Demo',
+                p_zone_ids: zoneIds,
                 p_check_in: selectedDates[0].toISOString().split('T')[0],
                 p_check_out: selectedDates[1].toISOString().split('T')[0],
-                p_total_price: cart.reduce((sum, item) => sum + item.totalPrice, 0)
+                p_total_price: totalPrice,
+                p_guest_counts: guestCounts
             });
 
-            if (res.data && res.data.includes('SUCCESS')) {
-                alert("預訂成功！請至 LINE 查看明細。");
-                location.reload();
-            } else {
-                alert("預訂失敗：" + res.data);
+            if (error) {
+                alert("預訂失敗：" + error.message);
                 btn.disabled = false;
                 btn.innerText = "確認訂位";
+            } else {
+                alert("預訂成功！樂見山期待您的光臨。");
+                location.reload();
             }
         }
     </script>
