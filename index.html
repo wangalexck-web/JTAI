@@ -8,47 +8,50 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <style>
+        .custom-gradient { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); }
+    </style>
 </head>
 <body class="bg-slate-50">
     <div class="max-w-md mx-auto p-4 min-h-screen pb-32">
-        <header class="text-center py-6">
-            <h1 class="text-2xl font-bold text-slate-800">樂見山 CAMP</h1>
-            <p class="text-xs text-slate-400 tracking-widest uppercase">Mountains & Memories</p>
+        <header class="text-center py-8">
+            <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight">樂見山 CAMP</h1>
+            <p class="text-[10px] text-slate-400 tracking-[0.2em] uppercase mt-1">Peaceful Mountain Retreat</p>
         </header>
 
-        <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 mb-4">
-            <label class="block text-sm font-bold text-slate-700 mb-3">1. 選擇預訂日期</label>
-            <input type="text" id="dateRange" class="w-full p-4 border border-slate-200 rounded-xl text-lg text-center bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-200" placeholder="點擊選擇日期範圍">
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 mb-4">
+            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Step 1. 預訂日期</label>
+            <input type="text" id="dateRange" class="w-full p-4 border-none rounded-2xl text-lg text-center bg-slate-100 font-bold text-slate-700 focus:ring-2 focus:ring-slate-200" placeholder="點擊選擇日期">
             
-            <div id="sunday-alert" class="hidden mt-3 p-4 bg-amber-50 border border-amber-100 rounded-xl">
-                <p class="text-sm text-amber-900 leading-relaxed font-medium">
-                    ✨ 為了給您最乾淨的草地與環境，<strong>週日進場時間為 14:00 後</strong>。營主正在為您的到來進行最後的打掃與整備，感謝您的體諒與耐心等待。
+            <div id="sunday-alert" class="hidden mt-4 p-4 bg-orange-50 border border-orange-100 rounded-2xl">
+                <p class="text-sm text-orange-900 leading-relaxed">
+                    ✨ 為了給您最乾淨的環境，<strong>週日進場時間為 14:00 後</strong>。營主正在為您的到來進行最後整備，感謝您的體諒。
                 </p>
             </div>
         </div>
 
-        <div id="weekend-lock" class="hidden bg-blue-50 p-6 rounded-2xl border border-blue-100 text-center mb-4 transition-all">
-            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span class="text-2xl">🌲</span>
+        <div id="weekend-lock" class="hidden bg-indigo-50 p-8 rounded-3xl border border-indigo-100 text-center mb-4">
+            <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
+                <span class="text-3xl">🌿</span>
             </div>
-            <p class="text-blue-900 font-bold mb-1">週五、週六時段預訂</p>
-            <p class="text-xs text-blue-600 mb-4 leading-relaxed">目前週末時段統一於【愛露營】平台開放預訂<br>歡迎點擊下方連結前往樂見山專屬頁面。</p>
-            <a href="https://m.icamping.app/store/ljs761" target="_blank" class="inline-block bg-blue-600 text-white px-8 py-3 rounded-full font-bold text-sm shadow-md active:scale-95 transition-all">
+            <h3 class="text-indigo-900 font-bold text-lg mb-2">週五、週六時段</h3>
+            <p class="text-sm text-indigo-600 mb-6 leading-relaxed">週末熱門時段目前統一由【愛露營】平台管理，請前往樂見山專屬頁面預訂。</p>
+            <button onclick="window.open('https://m.icamping.app/store/ljs761', '_blank')" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg shadow-indigo-200 active:scale-95 transition-all">
                 前往愛露營 (樂見山專屬)
-            </a>
+            </button>
         </div>
 
         <div id="zone-selection" class="hidden">
-            <label class="block text-sm font-bold text-slate-700 mb-3 px-1">2. 選擇營位與帳數</label>
-            <div id="zone-list" class="space-y-3 mb-6"></div>
+            <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Step 2. 選擇營位</label>
+            <div id="zone-list" class="space-y-3 mb-8"></div>
 
-            <div class="fixed bottom-4 left-4 right-4 max-w-md mx-auto bg-slate-900 text-white p-5 rounded-2xl shadow-2xl border border-slate-700">
+            <div class="fixed bottom-6 left-4 right-4 max-w-md mx-auto custom-gradient text-white p-6 rounded-3xl shadow-2xl">
                 <div class="flex justify-between items-center">
                     <div>
-                        <p class="text-[10px] uppercase tracking-wider opacity-50" id="summary-count">尚未選擇區域</p>
-                        <p id="total-price" class="text-2xl font-bold text-green-400">NT$ 0</p>
+                        <p class="text-[10px] opacity-50 uppercase font-bold" id="summary-count">未選擇區域</p>
+                        <p id="total-price" class="text-2xl font-bold text-emerald-400">NT$ 0</p>
                     </div>
-                    <button onclick="handleBooking()" id="submit-btn" class="bg-green-500 px-8 py-4 rounded-xl font-bold text-white hover:bg-green-400 disabled:opacity-30 disabled:grayscale transition-all shadow-lg active:scale-95">
+                    <button onclick="handleBooking()" id="submit-btn" class="bg-emerald-500 px-8 py-4 rounded-2xl font-bold text-white shadow-lg disabled:opacity-20 disabled:grayscale transition-all active:scale-95">
                         確認訂位
                     </button>
                 </div>
@@ -74,19 +77,18 @@
         });
 
         async function checkAvailability() {
-            // 重設 UI 狀態
+            // UI 重置
             document.getElementById('sunday-alert').classList.add('hidden');
             const lockBox = document.getElementById('weekend-lock');
             const zoneBox = document.getElementById('zone-selection');
             
-            // 偵測週末 (週五 5, 週六 6)
+            // 週末偵測 (5:週五, 6:週六)
             let hasWeekend = false;
             let scanDate = new Date(selectedDates[0]);
             let checkoutDate = new Date(selectedDates[1]);
 
             while (scanDate < checkoutDate) {
-                const day = scanDate.getDay();
-                if (day === 5 || day === 6) {
+                if (scanDate.getDay() === 5 || scanDate.getDay() === 6) {
                     hasWeekend = true;
                     break;
                 }
@@ -102,7 +104,7 @@
                 zoneBox.classList.remove('hidden');
             }
 
-            // 週日進場提醒判定
+            // 週日提醒
             if (selectedDates[0].getDay() === 0) {
                 document.getElementById('sunday-alert').classList.remove('hidden');
             }
@@ -110,7 +112,7 @@
             const start = selectedDates[0].toLocaleDateString('en-CA');
             const end = selectedDates[1].toLocaleDateString('en-CA');
 
-            // 抓取庫存與平日規則
+            // 抓取庫存與平日減帳比例
             const { data: inventoryData } = await _supabase.from('inventory').select('*, zones(*)').gte('date', start).lt('date', end);
             const { data: rules } = await _supabase.from('site_rules').select('*');
             const weekdayRule = rules.find(r => r.id === 'weekday');
@@ -122,22 +124,18 @@
             const list = document.getElementById('zone-list');
             list.innerHTML = "";
             cart = {};
-            
             const zoneMap = {};
+
             data.forEach(item => {
                 if (!zoneMap[item.zone_id]) {
                     zoneMap[item.zone_id] = { 
                         name: item.zones.name, 
                         total_spots: item.zones.total_spots,
-                        min_avail: 99, 
-                        total_price: 0,
-                        days: 0
+                        min_avail: 99, total_price: 0, days: 0
                     };
                 }
-                // 平日減帳計算
                 const dynamicMax = Math.max(1, Math.floor(item.zones.total_spots * ratio));
                 const currentAvail = Math.min(dynamicMax, item.remaining_spots);
-                
                 zoneMap[item.zone_id].min_avail = Math.min(zoneMap[item.zone_id].min_avail, currentAvail);
                 zoneMap[item.zone_id].total_price += item.current_price;
                 zoneMap[item.zone_id].days++;
@@ -149,10 +147,10 @@
                 card.className = "bg-white p-5 rounded-2xl border border-slate-100 flex justify-between items-center shadow-sm";
                 card.innerHTML = `
                     <div>
-                        <div class="font-bold text-slate-800 text-lg">${z.name}</div>
-                        <div class="text-[10px] text-slate-400 font-medium">平日開放上限 ${z.min_avail} 帳</div>
+                        <div class="font-bold text-slate-800">${z.name}</div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase">平日開放上限: ${z.min_avail} 帳</div>
                     </div>
-                    <select onchange="updateCart('${id}', this.value, ${z.total_price/z.days}, '${z.name}')" class="p-3 border-none bg-slate-100 rounded-xl text-sm font-bold focus:ring-2 focus:ring-green-500">
+                    <select onchange="updateCart('${id}', this.value, ${z.total_price/z.days}, '${z.name}')" class="p-3 bg-slate-50 border-none rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500">
                         <option value="0">不預訂</option>
                         ${Array.from({length: z.min_avail}, (_, i) => `<option value="${i+1}">${i+1} 帳</option>`).join('')}
                     </select>
@@ -173,21 +171,20 @@
 
         function updateUI() {
             const nights = Math.ceil((selectedDates[1] - selectedDates[0]) / 86400000);
-            let total = 0;
-            let count = 0;
+            let total = 0; let count = 0;
             Object.values(cart).forEach(item => {
                 total += item.quantity * item.pricePerNight * nights;
                 count++;
             });
             document.getElementById('total-price').innerText = `NT$ ${total.toLocaleString()}`;
-            document.getElementById('summary-count').innerText = count > 0 ? `已選擇 ${count} 個區域` : "尚未選擇區域";
+            document.getElementById('summary-count').innerText = count > 0 ? `已選 ${count} 區` : "尚未選擇";
             document.getElementById('submit-btn').disabled = count === 0;
         }
 
         async function handleBooking() {
             const btn = document.getElementById('submit-btn');
             btn.disabled = true;
-            btn.innerHTML = `<span class="inline-block animate-spin mr-2">⏳</span>處理中`;
+            btn.innerHTML = `處理中...`;
 
             const zoneIds = Object.keys(cart);
             const guestCounts = zoneIds.map(id => cart[id].quantity);
@@ -203,7 +200,7 @@
             });
 
             if (error) {
-                alert("預訂未能成功：" + error.message);
+                alert("預訂失敗：" + error.message);
                 btn.disabled = false;
                 btn.innerHTML = "確認訂位";
             } else {
