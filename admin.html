@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>樂見山 CAMP - 營主後台 v2.0</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 font-sans p-4">
+    <div class="max-w-3xl mx-auto space-y-6 pb-20">
+        <header class="flex justify-between items-center py-6">
+            <div>
+                <h1 class="text-2xl font-black text-slate-800 italic">樂見山 CAMP</h1>
+                <p class="text-xs text-slate-400 font-bold uppercase tracking-widest">營運初始化設置中心</p>
+            </div>
+            <div class="px-3 py-1 bg-green-500 text-white text-[10px] font-bold rounded-full">MASTER MODE</div>
+        </header>
+
+        <section class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
+            <h2 class="text-lg font-bold mb-4 flex items-center text-slate-700">📦 庫存鋪設機制</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                    <h3 class="font-bold text-sm mb-2">1. 滾動式開放 (平日適用)</h3>
+                    <div class="space-y-3">
+                        <input type="number" id="rolling-days" class="w-full p-2 text-sm rounded-lg border-none ring-1 ring-slate-200" placeholder="開放天數 (如 90)">
+                        <input type="time" id="rolling-time" class="w-full p-2 text-sm rounded-lg border-none ring-1 ring-slate-200" value="00:00">
+                        <button onclick="runInit('rolling')" class="w-full bg-slate-800 text-white py-2 rounded-lg text-sm font-bold">執行滾動鋪設</button>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                    <h3 class="font-bold text-sm mb-2 text-emerald-800">2. 季度批量開放</h3>
+                    <p class="text-[10px] text-emerald-600 mb-3 leading-relaxed">每年 1/4/7/10 月執行，自動解鎖下一季度 90 天庫存。</p>
+                    <button onclick="runInit('quarter')" class="w-full bg-emerald-600 text-white py-2 rounded-lg text-sm font-bold">執行季度初始化</button>
+                </div>
+            </div>
+            <div id="init-log" class="mt-4 text-[10px] text-slate-400 italic text-center"></div>
+        </section>
+
+        <section class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200">
+            <h2 class="text-lg font-bold mb-4 text-rose-600">🚩 模式 3：連假專案設定 (甲類)</h2>
+            <div class="space-y-4 bg-rose-50 p-5 rounded-2xl border border-rose-100 mb-6">
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="col-span-2">
+                        <label class="text-[10px] font-bold text-rose-400 uppercase">專案名稱</label>
+                        <input type="text" id="p-name" class="w-full p-3 rounded-xl border-none ring-1 ring-rose-200 mt-1" placeholder="如：2026 農曆春節">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-rose-400 uppercase">開始日期</label>
+                        <input type="date" id="p-start" class="w-full p-3 rounded-xl border-none ring-1 ring-rose-200 mt-1">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-rose-400 uppercase">結束日期</label>
+                        <input type="date" id="p-end" class="w-full p-3 rounded-xl border-none ring-1 ring-rose-200 mt-1">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-rose-400 uppercase">最低入住天數</label>
+                        <input type="number" id="p-min" class="w-full p-3 rounded-xl border-none ring-1 ring-rose-200 mt-1" value="3">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-bold text-rose-400 uppercase">預訂開放日期</label>
+                        <input type="date" id="p-release" class="w-full p-3 rounded-xl border-none ring-1 ring-rose-200 mt-1">
+                    </div>
+                </div>
+                <button onclick="saveProject()" class="w-full bg-rose-500 text-white py-4 rounded-xl font-bold shadow-lg">儲存並建立專案庫存</button>
+            </div>
+
+            <div id="project-list" class="space-y-3">
+                </div>
+        </section>
+    </div>
+
+    <script>
+        const _supabase = supabase.createClient('https://evdnzkvrmjnuzomogzar.supabase.co', 'sb_publishable_Tlpp57LlXUwYBRX84lI4WQ_MCv74hVQ');
+
+        async function runInit(type) {
+            const log = document.getElementById('init-log');
+            log.innerText = "正在執行通訊中...";
+            
+            // 模式 1: 滾動式 (傳入天數)
+            if(type === 'rolling') {
+                const days = document.getElementById('rolling-days').value || 90;
+                const { error } = await _supabase.rpc('initialize_inventory_rolling', { p_days: parseInt(days) });
+                if (error) alert(error.message);
+                else log.innerText = `✅ 滾動式鋪設成功：已開放未來 ${days} 天。`;
+            } 
+            // 模式 2: 季度式
+            else if(type === 'quarter') {
+                const { error } = await _supabase.rpc('initialize_inventory_quarter');
+                if (error) alert(error.message);
+                else log.innerText = "✅ 季度初始化成功：已補齊下一季度所有營位。";
+            }
+        }
+
+        async function saveProject() {
+            const project = {
+                project_name: document.getElementById('p-name').value,
+                start_date: document.getElementById('p-start').value,
+                end_date: document.getElementById('p-end').value,
+                min_nights: document.getElementById('p-min').value,
+                release_date: document.getElementById('p-release').value
+            };
+
+            const { error } = await _supabase.from('holiday_config').insert([project]);
+            if (error) alert("錯誤：" + error.message);
+            else {
+                alert("專案儲存成功！");
+                location.reload();
+            }
+        }
+
+        async function loadProjects() {
+            const list = document.getElementById('project-list');
+            const { data } = await _supabase.from('holiday_config').select('*').order('start_date', {ascending:true});
+            if(data) {
+                list.innerHTML = "";
+                data.forEach(p => {
+                    const div = document.createElement('div');
+                    div.className = "flex justify-between items-center p-4 bg-white rounded-2xl border border-slate-100 shadow-sm";
+                    div.innerHTML = `
+                        <div>
+                            <span class="text-[10px] font-black text-rose-500 uppercase tracking-widest">${p.min_nights}晚起訂</span>
+                            <div class="font-bold text-slate-800">${p.project_name}</div>
+                            <div class="text-[10px] text-slate-400">${p.start_date} ~ ${p.end_date}</div>
+                        </div>
+                        <button onclick="deleteProject('${p.id}')" class="text-slate-300 hover:text-rose-500">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    `;
+                    list.appendChild(div);
+                });
+            }
+        }
+
+        async function deleteProject(id) {
+            if(confirm("確定刪除？")) {
+                await _supabase.from('holiday_config').delete().eq('id', id);
+                location.reload();
+            }
+        }
+
+        loadProjects();
+    </script>
+</body>
+</html>
